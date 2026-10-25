@@ -1,0 +1,11 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_role(['admin']);
+$users = db()->query('SELECT DISTINCT username FROM activity_log ORDER BY username')->fetchAll(PDO::FETCH_COLUMN);
+$pageTitle = 'Activity Log';
+require __DIR__ . '/../includes/header.php';
+?>
+<section class="admin-shell"><aside class="admin-sidebar"><a href="<?= BASE_URL ?>/admin/dashboard.php">Overview</a><a href="<?= BASE_URL ?>/admin/manage-notices.php">Manage notices</a><a href="<?= BASE_URL ?>/admin/add-notice.php">Add notice</a><a href="<?= BASE_URL ?>/admin/manage-users.php">Manage users</a><a class="active" href="<?= BASE_URL ?>/admin/activity-log.php">Activity log</a></aside><div class="admin-content"><div class="admin-heading"><div><p class="eyebrow">Audit trail</p><h1>Activity log</h1></div></div><form id="activity-filters" class="management-filters"><select name="action"><option value="">All actions</option><?php foreach (['add','edit','delete','login','failed_login','user_create','user_delete'] as $action): ?><option value="<?= h($action) ?>"><?= h(ucwords(str_replace('_',' ',$action))) ?></option><?php endforeach; ?></select><select name="user"><option value="">All users</option><?php foreach ($users as $user): ?><option value="<?= h($user) ?>"><?= h($user) ?></option><?php endforeach; ?></select><button class="button button-primary" type="submit">Filter</button></form><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>User</th><th>Action</th><th>Notice or account</th></tr></thead><tbody id="activity-list"></tbody></table></div><div class="load-more-wrap"><button id="activity-more" class="button button-light" type="button" hidden>Load more activity</button></div></div></section><script>window.ACTIVITY_API_URL='<?= BASE_URL ?>/api/activity-log.php';</script><script src="<?= BASE_URL ?>/assets/js/admin.js?v=20261024-ui"></script>
+<?php require __DIR__ . '/../includes/footer.php'; ?>

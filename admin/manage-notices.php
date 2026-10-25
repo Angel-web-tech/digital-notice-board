@@ -1,0 +1,25 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_role(['admin', 'faculty']);
+$filters = ['search' => trim((string) ($_GET['search'] ?? '')), 'category' => (string) ($_GET['category'] ?? ''), 'department' => (string) ($_GET['department'] ?? ''), 'status' => (string) ($_GET['status'] ?? '')];
+if (mb_strlen($filters['search']) > 100) $filters['search'] = mb_substr($filters['search'], 0, 100);
+$where = [];
+$params = [];
+if ($filters['search'] !== '') { $where[] = '(title LIKE :search_title OR description LIKE :search_description)'; $params['search_title'] = '%' . $filters['search'] . '%'; $params['search_description'] = '%' . $filters['search'] . '%'; }
+if (in_array($filters['category'], NOTICE_CATEGORIES, true)) { $where[] = 'category=:category'; $params['category'] = $filters['category']; }
+if (in_array($filters['department'], NOTICE_DEPARTMENTS, true)) { $where[] = 'department=:department'; $params['department'] = $filters['department']; }
+if (in_array($filters['status'], ['active', 'scheduled', 'expired', 'draft'], true)) { [$statusSql] = status_sql($filters['status'], ''); $where[] = $statusSql; }
+$sql = 'SELECT * FROM notices' . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY is_pinned DESC, created_at DESC LIMIT 300';
+$notices = db()->prepare($sql);
+$notices->execute($params);
+$notices = $notices->fetchAll();
+$pageTitle = 'Manage Notices';
+require __DIR__ . '/../includes/header.php';
+?>
+<section class="admin-shell"><aside class="admin-sidebar"><a href="<?= BASE_URL ?>/admin/dashboard.php">Overview</a><a class="active" href="<?= BASE_URL ?>/admin/manage-notices.php">Manage notices</a><a href="<?= BASE_URL ?>/admin/add-notice.php">Add notice</a></aside><div class="admin-content"><div class="admin-heading"><div><p class="eyebrow">Administration</p><h1>Manage notices</h1></div><a class="button button-primary" href="<?= BASE_URL ?>/admin/add-notice.php">＋ Add notice</a></div><div id="toast-region" class="toast-region" aria-live="polite"></div>
+<form class="management-filters" method="get"><input type="search" name="search" maxlength="100" placeholder="Search notices" value="<?= h($filters['search']) ?>"><select name="category"><option value="">All categories</option><?php foreach (NOTICE_CATEGORIES as $category): ?><option value="<?= h($category) ?>" <?= $filters['category'] === $category ? 'selected' : '' ?>><?= h($category) ?></option><?php endforeach; ?></select><select name="department"><option value="">All departments</option><?php foreach (NOTICE_DEPARTMENTS as $department): ?><option value="<?= h($department) ?>" <?= $filters['department'] === $department ? 'selected' : '' ?>><?= h($department) ?></option><?php endforeach; ?></select><select name="status"><option value="">All statuses</option><?php foreach (['active', 'scheduled', 'expired', 'draft'] as $status): ?><option value="<?= $status ?>" <?= $filters['status'] === $status ? 'selected' : '' ?>><?= ucfirst($status) ?></option><?php endforeach; ?></select><button class="button button-primary" type="submit">Filter</button><a class="button button-light" href="<?= BASE_URL ?>/admin/manage-notices.php">Clear</a><?php if (can_export_notices()): ?><a class="button button-light" href="<?= BASE_URL ?>/api/export-notices.php?<?= h(http_build_query($filters)) ?>">Export CSV</a><?php endif; ?></form>
+<div class="table-wrap"><table class="data-table"><thead><tr><th>Notice</th><th>Category / Department</th><th>Status</th><th>Dates</th><th>Actions</th></tr></thead><tbody><?php foreach ($notices as $notice): $status = notice_status($notice); ?><tr><td><strong><?= h($notice['title']) ?></strong><?php if ($notice['is_pinned']): ?><span class="table-pin">Pinned</span><?php endif; ?></td><td><?= h($notice['category']) ?><small><?= h($notice['department']) ?></small></td><td><span class="status-pill status-<?= h($status) ?>"><?= h(ucfirst($status)) ?></span><?php if ($notice['priority'] === 'urgent' && $status === 'active'): ?><small class="urgent-text">Urgent</small><?php endif; ?></td><td><small>From <?= h(display_date($notice['publish_date'])) ?></small><small>Until <?= h(display_date($notice['expiry_date'])) ?></small></td><td class="row-actions"><a class="icon-button" title="Edit notice" aria-label="Edit notice" href="<?= BASE_URL ?>/admin/edit-notice.php?notice_id=<?= (int) $notice['notice_id'] ?>">✎</a><?php if (can_delete_notices()): ?><button class="icon-button delete-notice" title="Delete notice" aria-label="Delete <?= h($notice['title']) ?>" data-id="<?= (int) $notice['notice_id'] ?>" data-csrf="<?= h(csrf_token()) ?>">⌫</button><?php endif; ?></td></tr><?php endforeach; ?><?php if (!$notices): ?><tr><td colspan="5" class="table-empty">No notices match these filters.</td></tr><?php endif; ?></tbody></table></div>
+</div></section><script src="<?= BASE_URL ?>/assets/js/admin.js?v=20261024-ui"></script>
+<?php require __DIR__ . '/../includes/footer.php'; ?>
